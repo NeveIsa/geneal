@@ -12,6 +12,7 @@ from geneal.utils.exceptions_messages import exception_messages
 from geneal.utils.helpers import get_elapsed_time
 from geneal.utils.logger import configure_logger
 
+from pathos.multiprocessing import ProcessingPool as Pool
 
 allowed_selection_strategies = {"roulette_wheel", "two_by_two", "random", "tournament"}
 
@@ -32,6 +33,7 @@ class GenAlgSolver:
         excluded_genes: Sequence = None,
         n_crossover_points: int = 1,
         random_state: int = None,
+        num_procs: int = 1
     ):
         """
         :param fitness_function: can either be a fitness function or
@@ -48,6 +50,7 @@ class GenAlgSolver:
         :param plot_results: whether to plot results of the run at the end
         :param n_crossover_points: number of slices to make for the crossover
         :param random_state: optional. whether the random seed should be set
+        :param num_procs: optional. number of processors to use in parallel 
         """
 
         if isinstance(random_state, int):
@@ -88,6 +91,10 @@ class GenAlgSolver:
         self.best_fitness_ = 0
         self.population_ = None
         self.fitness_ = None
+
+        self.num_procs_ = num_procs
+        if num_procs > 1: 
+            self.pool_ = Pool(num_procs)
 
     def check_input_base(
         self, fitness_function, selection_strategy, pop_size, excluded_genes
@@ -160,7 +167,7 @@ class GenAlgSolver:
             max_fitness = np.append(max_fitness, fitness[0])
 
             ma, pa = self.select_parents(fitness)
-
+            
             ix = np.arange(0, self.pop_size - self.pop_keep - 1, 2)
 
             xp = np.array(
@@ -180,7 +187,7 @@ class GenAlgSolver:
                 )
 
             population = self.mutate_population(population, self.n_mutations)
-
+            #print(population)            
             fitness = np.hstack((fitness[0], self.calculate_fitness(population[1:, :])))
 
             fitness, population = self.sort_by_fitness(fitness, population)
@@ -211,7 +218,12 @@ class GenAlgSolver:
         :param population: population state at a given iteration
         :return: the fitness of the current population
         """
-        return np.array(list(map(self.fitness_function, population)))
+        if self.num_procs_ > 1:
+            fitness = np.array(self.pool_.map(self.fitness_function, population))
+        else:
+            fitness = np.array(list(map(self.fitness_function, population)))
+        
+        return fitness
 
     def select_parents(self, fitness):
         """
@@ -350,9 +362,9 @@ class GenAlgSolver:
         :param population: population state at a given iteration
         :return: the sorted fitness array and sorted population array
         """
-
+       
         sorted_fitness = np.argsort(fitness)[::-1]
-
+        
         population = population[sorted_fitness, :]
         fitness = fitness[sorted_fitness]
 

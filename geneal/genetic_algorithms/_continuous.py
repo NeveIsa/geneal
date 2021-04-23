@@ -24,6 +24,7 @@ class ContinuousGenAlgSolver(GenAlgSolver):
         problem_type=float,
         n_crossover_points: int = 1,
         random_state: int = None,
+        num_procs: int = 1
     ):
         """
         :param fitness_function: can either be a fitness function or
@@ -58,6 +59,7 @@ class ContinuousGenAlgSolver(GenAlgSolver):
             excluded_genes=excluded_genes,
             n_crossover_points=n_crossover_points,
             random_state=random_state,
+            num_procs = num_procs
         )
 
         if not variables_limits:
@@ -68,7 +70,7 @@ class ContinuousGenAlgSolver(GenAlgSolver):
             variables_limits = [variables_limits for _ in range(n_genes)]
 
         self.variables_limits = variables_limits
-        self.problem_type = problem_type
+        self.problem_type = problem_type        
 
     def initialize_population(self):
         """
@@ -129,9 +131,9 @@ class ContinuousGenAlgSolver(GenAlgSolver):
         Important if there's different logic to be applied to each case.
         :return: the resulting offspring.
         """
-
+        
         crossover_pt = crossover_pt[0]
-
+        
         beta = (
             np.random.rand(1)[0]
             if offspring_number == "first"
@@ -147,9 +149,17 @@ class ContinuousGenAlgSolver(GenAlgSolver):
                 beta * (first_parent[crossover_pt] - sec_parent[crossover_pt])
             )
 
-        return np.hstack(
+        # verify within limits
+        limit_min,limit_max = self.variables_limits[crossover_pt]
+        if not p_new in np.arange(limit_min,limit_max):
+            p_new = p_new % (limit_max - limit_min) + limit_min
+            
+        
+        offspring =  np.hstack(
             (first_parent[:crossover_pt], p_new, sec_parent[crossover_pt + 1 :])
         )
+        
+        return offspring
 
     def mutate_population(self, population, n_mutations):
         """
@@ -160,7 +170,6 @@ class ContinuousGenAlgSolver(GenAlgSolver):
         :param n_mutations: number of mutations to be performed.
         :return: the mutated population
         """
-
         mutation_rows, mutation_cols = super(
             ContinuousGenAlgSolver, self
         ).mutate_population(population, n_mutations)
@@ -168,5 +177,5 @@ class ContinuousGenAlgSolver(GenAlgSolver):
         population[mutation_rows, mutation_cols] = self.initialize_population()[
             mutation_rows, mutation_cols
         ]
-
+       
         return population
